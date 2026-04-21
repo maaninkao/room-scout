@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from room_scout.models import AppConfig, FilterConfig, Listing
-from room_scout.notifier import send_notification
+from room_scout.notifier import _encode_header, send_notification
 
 
 @pytest.fixture
@@ -48,15 +48,16 @@ def test_send_notification_headers_and_body(config, listing):
     assert url == "https://ntfy.sh/test-topic-abc123"
 
     headers = call_kwargs.kwargs["headers"]
-    assert headers["Title"] == listing.title
-    assert headers["Click"] == listing.url
+    assert headers["Title"] == _encode_header(listing.title)
+    assert headers["Click"] == _encode_header(listing.url)
     assert headers["Priority"] == "high"
     assert headers["Tags"] == "house"
-    assert headers["Attach"] == listing.image_url
+    assert headers["Attach"] == _encode_header(listing.image_url)
 
     body = call_kwargs.kwargs["content"].decode()
-    assert "€550" in body
-    assert "18 m²" in body
+    assert "EUR 550" in body
+    assert "/kk" in body
+    assert "18 m2" in body
     assert "01 May 2026" in body
     assert listing.address in body
 
@@ -78,7 +79,7 @@ def test_send_notification_recently_booked(config):
 
     body = mock_post.call_args.kwargs["content"].decode()
     assert "booked" in body
-    assert "€600" in body
+    assert "EUR 600" in body
 
 
 def test_send_notification_no_attach_when_no_image(config):
