@@ -6,7 +6,7 @@ from .config import load_config
 from .filters import matches
 from .models import Listing
 from .notifier import send_notification
-from .scraper import scrape_fixture
+from .scraper import fetch_live
 from .storage import Storage
 
 
@@ -21,7 +21,7 @@ def run_once():
     config = load_config()
     storage = Storage(config.db_path)
 
-    listings = scrape_fixture()
+    listings = fetch_live(config)
 
     found = len(listings)
     new_count = 0

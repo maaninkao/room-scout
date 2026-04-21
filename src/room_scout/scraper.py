@@ -5,9 +5,10 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from selectolax.parser import HTMLParser
 
-from .models import Listing
+from .models import AppConfig, Listing
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,26 @@ def parse_html(html: str) -> list[Listing]:
                 listings.append(listing)
         except Exception:
             logger.warning("Failed to parse card with href=%s", href, exc_info=True)
+    return listings
+
+
+_LIVE_URL_TEMPLATE = "https://coliving.joivy.com/en/rent-room-{city}/"
+_DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+def fetch_live(config: AppConfig) -> list[Listing]:
+    """Fetch listings from the live Joivy site and parse them into Listings."""
+    url = _LIVE_URL_TEMPLATE.format(city=config.city)
+    logger.info("Fetching live listings from %s", url)
+    headers = {"User-Agent": _DEFAULT_USER_AGENT}
+    resp = httpx.get(url, headers=headers, timeout=30.0, follow_redirects=True)
+    resp.raise_for_status()
+    listings = parse_html(resp.text)
+    logger.info("Parsed %d listings from live page", len(listings))
     return listings
 
 
