@@ -58,3 +58,25 @@ rm data/seen.db
 - **Parse is best-effort** — the scraper uses HTML parsing (Strategy B) against Joivy's rendered page structure; if Joivy changes their markup, some fields may silently fall back to `None`.
 - **No scheduler** — `run-once` is a single scan. Schedule it yourself (Task Scheduler, cron, etc.) if you want periodic checks.
 - **Live fetch requires internet** — tests run entirely against a local fixture; live mode calls `joivy.com` directly via httpx.
+
+## Deploy via GitHub Actions
+
+Scout runs every 10 minutes on GitHub Actions for free on a public repo.
+
+1. Push this repo to GitHub (public).
+2. Go to repo **Settings → Secrets and variables → Actions → New repository secret**.
+3. Add two secrets:
+   - `NTFY_TOPIC` — your ntfy topic name (plain text, same as in .env)
+   - `CONFIG_YAML` — your `config.yaml` file contents encoded as base64.
+     Generate with PowerShell:
+     `[Convert]::ToBase64String([System.IO.File]::ReadAllBytes("config.yaml"))`
+4. Go to **Actions** tab. If workflows are disabled, click to enable.
+5. First run: click **Room Scout** → **Run workflow** → **Run workflow** button. 
+   This triggers immediate test run. Check logs and your phone.
+6. After that, the scheduler runs every 10 min automatically.
+
+### Updating filters
+
+To change filters, regenerate the base64 from your edited local `config.yaml` 
+and paste the new value into the `CONFIG_YAML` secret. Changes take effect 
+on the next scheduled run.

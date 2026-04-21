@@ -1,0 +1,55 @@
+name: Room Scout
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scout
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Decode config
+        env:
+          CONFIG_YAML_B64: ${{ secrets.CONFIG_YAML }}
+        run: |
+          echo "$CONFIG_YAML_B64" | base64 -d > config.yaml
+          cat config.yaml
+
+      - name: Restore seen.db cache
+        id: cache-db
+        uses: actions/cache@v4
+        with:
+          path: data/seen.db
+          key: seen-db-${{ github.run_id }}
+          restore-keys: |
+            seen-db-
+
+      - name: Run scout
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: room-scout run-once
+
+      - name: Save seen.db cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/seen.db
+          key: seen-db-${{ github.run_id }}
