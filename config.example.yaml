@@ -1,0 +1,19 @@
+city: trento
+
+ntfy:
+  server: https://ntfy.sh
+  priority: high
+
+filters:
+  max_price_eur: null
+  min_price_eur: null
+  min_size_sqm: null
+  max_size_sqm: null
+  earliest_available: null
+  latest_available: null
+  address_must_contain: []
+  address_must_not_contain: []
+  include_recently_booked: false
+
+storage:
+  db_path: data/seen.db

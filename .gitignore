@@ -7,3 +7,6 @@ __pycache__/
 .venv/
 *.pyc
 .ruff_cache/
+autorun-log.txt
+reports.db
+nina-autorun.ps1
