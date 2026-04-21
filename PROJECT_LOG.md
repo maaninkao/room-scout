@@ -107,9 +107,11 @@ room-scout/
 │   └── cli.py                     — click: run-once, test-notify
 └── tests/
     ├── fixtures/trento_sample.html — staattinen HTML-snapshot testejä varten
+    ├── test_cli.py                 — 3 testiä (run-once retry-semantiikka)
     ├── test_filters.py             — 8 yksikkötestiä
     ├── test_notifier.py            — 4 testiä (httpx mock)
     ├── test_scraper.py             — 5 testiä (fixture-pohjaisia)
+    ├── test_scraper_live.py        — 1 testi (fetch_live URL + UA mock)
     └── test_storage.py             — 3 testiä (tmp_path SQLite)
 ```
 
@@ -195,6 +197,21 @@ Rakennettu yhdessä yössä AutoRun Commander -työkalun avulla:
    oikea URL ja User-Agent lähtevät ilman että testi käy oikeasti
    verkossa.
 
+9. **Audit paljasti HIGH-tason bugin "notification loss"** (2026-04-21):
+   cli.py:run-once merkitsi kohteen `seen`-tilaan ennen push-yritystä.
+   Jos ntfy-kutsu epäonnistui (verkkovirhe, palvelin alhaalla), kohde
+   jäi "seen mutta ei notified" -tilaan. Seuraavalla ajolla `mark_seen`
+   palautti False → `is_new=False` → ilmoitusta ei yritetty uudelleen.
+   Ilmoitus menetettiin pysyvästi ja hiljaisesti.
+   Lisäksi yksittäinen poikkeus kaatoi koko for-loopin, joten loopun
+   jäljellä olevat kohteet jäivät kokonaan käsittelemättä.
+   Korjattu commit `c1edce2`:
+   - `mark_seen` + `mark_notified` kutsutaan vain onnistuneen pushin jälkeen
+   - per-kohde `try/except` kirjoittaa ERROR-tason lokin ja jatkaa seuraavaan
+   - virheet lokitetaan stack tracella (`exc_info=True`)
+   - `run-once` tulostaa nyt `errors`-sarakkeen yhteenvedossa
+   - 3 uutta testiä `tests/test_cli.py` varmistavat retry-semantiikan
+
 ---
 
 ## 8. Miten se toimii normaalissa käytössä
@@ -227,6 +244,22 @@ room-scout run-once           # ajaa kerran, tulostaa Found/new/matched/notified
 ---
 
 ## 9. Vianetsintä — mitä tarkistaa kun jotain on rikki
+
+### `errors > 0` ajon yhteenvedossa
+
+Yksi tai useampi push kaatui (ntfy alhaalla, verkkovirhe, HTTP 4xx/5xx).
+Kohteet pysyvät tilassa "seen mutta ei notified" — ne yritetään uudelleen
+seuraavalla ajolla, koska `mark_seen` ja `mark_notified` kutsutaan vain
+onnistuneen pushin jälkeen.
+
+Tarkista mikä kohde ja virhe:
+
+```powershell
+gh run view <run-id> --log | Select-String -Pattern "ERROR|failed"
+```
+
+Jos ntfy on jatkuvasti alhaalla, harkitse `test-notify`-komennon ajamista
+paikallisesti ennen seuraavaa tuotantoajoa.
 
 ### Puhelimeen ei tule mitään
 
@@ -360,7 +393,7 @@ Kaverille annettavat ohjeet täyteen siirtoon:
 
 ## 14. Testit ja hyväksyntäkriteerit
 
-Kaikki 21 yksikkötestiä kulkevat ilman live-verkkokutsuja:
+Kaikki 24 yksikkötestiä kulkevat ilman live-verkkokutsuja:
 
 ```powershell
 cd C:\Projects\room-scout
@@ -371,12 +404,13 @@ pytest -v
 Odotettu tulos:
 
 ```
+tests/test_cli.py           3 passed
 tests/test_filters.py       8 passed
 tests/test_notifier.py      4 passed
 tests/test_scraper.py       5 passed
 tests/test_scraper_live.py  1 passed
 tests/test_storage.py       3 passed
-==================== 21 passed ====================
+==================== 24 passed ====================
 ```
 
 **Testisäännöt (CLAUDE.md:stä):**
