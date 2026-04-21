@@ -186,6 +186,15 @@ Rakennettu yhdessä yössä AutoRun Commander -työkalun avulla:
    - GitHub ei indeksoinut workflow'ta heti; kierto: tyhjä muutos
      `scout.yml`:ään pakotti re-indeksoinnin.
 
+8. **Kriittinen bugi havaittu PROJECT_LOG-kirjoituksen yhteydessä**:
+   cli.py:run-once kutsui scrape_fixture():a eikä live-fetchia.
+   Tuotantobotti näki aina vain eilisen HTML-snapshotin. Korjattu
+   lisäämällä scraper.fetch_live() joka httpx-GET:taa Joivyn live-
+   URL:n oikealla User-Agentilla, ja vaihtamalla cli.py osoittamaan
+   siihen. Mocked-testi tests/test_scraper_live.py varmistaa että
+   oikea URL ja User-Agent lähtevät ilman että testi käy oikeasti
+   verkossa.
+
 ---
 
 ## 8. Miten se toimii normaalissa käytössä
@@ -198,21 +207,13 @@ Rakennettu yhdessä yössä AutoRun Commander -työkalun avulla:
 3. config.yaml dekoodataan: echo "$CONFIG_YAML_B64" | base64 -d > config.yaml
 4. data/seen.db palautetaan Actions-cachesta (tyhjä jos ensimmäinen ajo)
 5. room-scout run-once:
-   a. parse_html(trento_sample.html)... ODOTA — ei, live-ajo fetchaa httpx:llä
-      (scraper.py käyttää scrape_fixture() paikallisesti, mutta run-once
-       kutsuu tätä suoraan fixture-tiedostosta, EI live-URLista!)
-   b. mark_seen(listing) → True jos uusi slug
-   c. jos uusi JA matches() → send_notification() + mark_notified()
-   d. tulosta "Found N, M new, K matched, K notified"
+   a. fetch_live(config) httpx-GET:taa Joivyn live-sivun oikealla User-Agentilla
+   b. parse_html(resp.text) → list[Listing]
+   c. mark_seen(listing) → True jos uusi slug
+   d. jos uusi JA matches() → send_notification() + mark_notified()
+   e. tulosta "Found N, M new, K matched, K notified"
 6. seen.db tallennetaan cacheen seuraavaa ajoa varten
 ```
-
-> **HUOMIO:** Nykyinen `cli.py` kutsuu `scrape_fixture()` — se lukee
-> `tests/fixtures/trento_sample.html`-tiedoston eikä live-Joivy-sivua.
-> Tuotannossa botti siis skannaa aina saman fixture-snapshotin, ei
-> oikeaa live-dataa. Jos haluaa live-datan, `scraper.py`:hen pitää lisätä
-> `scrape_live(url)` joka fetchaa httpx:llä, ja `cli.py` pitää päivittää
-> kutsumaan sitä. Tämä on tunnettu rajoitus / seuraava askel.
 
 **Paikallinen testisykli:**
 
@@ -332,11 +333,6 @@ Kaverille annettavat ohjeet täyteen siirtoon:
 
 ## 12. Mahdollisia parannuksia (ei pakollisia)
 
-- **Live-fetch scraperiin** — suurin puuttuva ominaisuus. Lisää
-  `scraper.py`:hyn `scrape_live(url: str) -> list[Listing]` httpx:llä
-  ja päivitä `cli.py` käyttämään sitä. Ilman tätä botti ei koskaan
-  löydä uusia kohteita tuotannossa.
-
 - **Health-check-push** — jos scraper löytää 0 kohdetta tai yli 30,
   lähetä erillinen hälytys. Kertoisi automaattisesti parse-viasta.
 
@@ -364,7 +360,7 @@ Kaverille annettavat ohjeet täyteen siirtoon:
 
 ## 14. Testit ja hyväksyntäkriteerit
 
-Kaikki 20 yksikkötestiä kulkevat ilman live-verkkokutsuja:
+Kaikki 21 yksikkötestiä kulkevat ilman live-verkkokutsuja:
 
 ```powershell
 cd C:\Projects\room-scout
@@ -375,11 +371,12 @@ pytest -v
 Odotettu tulos:
 
 ```
-tests/test_filters.py    8 passed
-tests/test_notifier.py   4 passed
-tests/test_scraper.py    5 passed
-tests/test_storage.py    3 passed
-==================== 20 passed ====================
+tests/test_filters.py       8 passed
+tests/test_notifier.py      4 passed
+tests/test_scraper.py       5 passed
+tests/test_scraper_live.py  1 passed
+tests/test_storage.py       3 passed
+==================== 21 passed ====================
 ```
 
 **Testisäännöt (CLAUDE.md:stä):**
